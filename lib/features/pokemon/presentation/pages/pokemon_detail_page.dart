@@ -23,6 +23,8 @@ class _PokemonDetailPageState extends State<PokemonDetailPage> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Clear previous Pokemon data to prevent showing old data
+      context.read<PokemonProvider>().clearSelectedPokemon();
       context.read<PokemonProvider>().loadPokemonDetail(widget.pokemon.id.toString());
     });
   }
@@ -32,7 +34,11 @@ class _PokemonDetailPageState extends State<PokemonDetailPage> {
     return Scaffold(
       body: Consumer<PokemonProvider>(
         builder: (context, provider, child) {
-          final pokemon = provider.selectedPokemon ?? widget.pokemon;
+          // Use selectedPokemon only if it matches the current Pokemon being viewed
+          // This prevents showing data from previously viewed Pokemon
+          final pokemon = (provider.selectedPokemon?.id == widget.pokemon.id) 
+              ? provider.selectedPokemon! 
+              : widget.pokemon;
           
           return CustomScrollView(
             slivers: [

@@ -9,7 +9,8 @@ class PokemonProvider extends ChangeNotifier {
 
   // State variables
   PokemonLoadState _loadState = PokemonLoadState.initial;
-  final List<Pokemon> _allPokemon = [];
+  final List<Pokemon> _allPokemon = []; // Paginated Pokemon from API
+  final List<Pokemon> _apiSearchedPokemon = []; // Pokemon found via API search
   List<Pokemon> _filteredPokemon = [];
   String _searchQuery = '';
   String? _errorMessage;
@@ -128,15 +129,19 @@ class PokemonProvider extends ChangeNotifier {
       if (detailResponse != null) {
         final pokemon = detailResponse.toPokemon();
 
-        // Check if Pokemon is already in the list
+        // Check if Pokemon is already in the paginated list
         final existingIndex = _allPokemon.indexWhere((p) => p.id == pokemon.id);
+        final existingSearchIndex = _apiSearchedPokemon.indexWhere((p) => p.id == pokemon.id);
 
-        if (existingIndex == -1) {
-          // Add new Pokemon to the list
-          _allPokemon.insert(0, pokemon);
-        } else {
-          // Update existing Pokemon with detailed info
+        if (existingIndex == -1 && existingSearchIndex == -1) {
+          // Add to API searched Pokemon list
+          _apiSearchedPokemon.add(pokemon);
+        } else if (existingIndex != -1) {
+          // Update existing Pokemon in paginated list with detailed info
           _allPokemon[existingIndex] = pokemon;
+        } else if (existingSearchIndex != -1) {
+          // Update existing Pokemon in API searched list
+          _apiSearchedPokemon[existingSearchIndex] = pokemon;
         }
 
         _filterPokemon();
@@ -150,9 +155,12 @@ class PokemonProvider extends ChangeNotifier {
   /// Filter Pokemon based on search query
   void _filterPokemon() {
     if (_searchQuery.isEmpty) {
+      // When not searching, only show paginated Pokemon
       _filteredPokemon = List.from(_allPokemon);
     } else {
-      _filteredPokemon = _allPokemon
+      // When searching, include both paginated and API-searched Pokemon
+      final combinedPokemon = [..._allPokemon, ..._apiSearchedPokemon];
+      _filteredPokemon = combinedPokemon
           .where((pokemon) => pokemon.name.toLowerCase().contains(_searchQuery))
           .toList();
     }
@@ -169,12 +177,16 @@ class PokemonProvider extends ChangeNotifier {
       final response = await _apiService.fetchPokemonDetail(identifier);
       _selectedPokemon = response.toPokemon();
 
-      // Update the Pokemon in the main list with detailed info
-      final index = _allPokemon.indexWhere((p) => p.id == _selectedPokemon!.id);
-      if (index != -1) {
-        _allPokemon[index] = _selectedPokemon!;
-        _filterPokemon();
+      // Update the Pokemon in the appropriate list with detailed info
+      final paginatedIndex = _allPokemon.indexWhere((p) => p.id == _selectedPokemon!.id);
+      final searchedIndex = _apiSearchedPokemon.indexWhere((p) => p.id == _selectedPokemon!.id);
+      
+      if (paginatedIndex != -1) {
+        _allPokemon[paginatedIndex] = _selectedPokemon!;
+      } else if (searchedIndex != -1) {
+        _apiSearchedPokemon[searchedIndex] = _selectedPokemon!;
       }
+      _filterPokemon();
 
       _setDetailLoadState(PokemonLoadState.loaded);
     } catch (e) {
@@ -193,6 +205,7 @@ class PokemonProvider extends ChangeNotifier {
   /// Refresh all data
   Future<void> refresh() async {
     _allPokemon.clear();
+    _apiSearchedPokemon.clear();
     _filteredPokemon.clear();
     _searchQuery = '';
     _selectedPokemon = null;
